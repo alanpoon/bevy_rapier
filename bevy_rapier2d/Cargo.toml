@@ -29,12 +29,13 @@ serde-serialize = [ "rapier2d/serde-serialize" ]
 enhanced-determinism = [ "rapier2d/enhanced-determinism" ]
 
 [dependencies]
-bevy = { path ="../../bevy2", default-features = false }
+bevy = { git = "https://github.com/bevyengine/bevy", rev = "d65fbd7b9d4e7393acb18ee446b76ed28a549548", default-features = false }
+#bevy = { path ="../../bevy2", default-features = false }
 nalgebra = { version = "0.29", features = [ "convert-glam013" ] }
 # Don't enable the default features because we don't need the ColliderSet/RigidBodySet
 rapier2d = { version = "0.11", default-features = false, features = [ "dim2", "f32" ] }
 
 [dev-dependencies]
-bevy_wgpu = {path="../../bevy2/crates/bevy_wgpu"}
-bevy_winit = { path="../../bevy2/crates/bevy_winit", features = [ "x11" ] }
+bevy_wgpu = {git = "https://github.com/bevyengine/bevy", rev = "d65fbd7b9d4e7393acb18ee446b76ed28a549548"}
+bevy_winit = { git = "https://github.com/bevyengine/bevy", rev = "d65fbd7b9d4e7393acb18ee446b76ed28a549548", features = [ "x11" ] }
 oorandom = "11"
