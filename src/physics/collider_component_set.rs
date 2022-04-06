@@ -4,7 +4,8 @@ use crate::physics::wrapper::{
     ColliderMassPropsComponent, ColliderMaterialComponent, ColliderParentComponent,
     ColliderPositionComponent, ColliderShapeComponent, ColliderTypeComponent,
 };
-use bevy::prelude::*;
+use bevy_app::prelude::*;
+use bevy_ecs::prelude::*;
 use rapier::data::{ComponentSet, ComponentSetMut, ComponentSetOption, Index};
 use rapier::geometry;
 impl IntoHandle<geometry::ColliderHandle> for Entity {

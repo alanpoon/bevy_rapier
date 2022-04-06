@@ -8,8 +8,7 @@ pub mod wrapper;
 use crate::rapier::data::{ComponentSet, ComponentSetMut, ComponentSetOption, Index};
 //use crate::rapier::prelude::*;
 use crate::rapier::prelude::JointHandle;
-use bevy::prelude::{Entity, Query};
-
+use bevy_ecs::prelude::*;
 pub trait IntoHandle<H> {
     fn handle(self) -> H;
 }
@@ -138,10 +137,10 @@ pub struct QueryComponentSetMut<
     'world,
     'state,
     'a,
-    T: 'static + Send + Sync + bevy::prelude::Component,
+    T: 'static + Send + Sync + bevy_ecs::prelude::Component,
 >(ComponentSetQueryMut<'world, 'state, 'a, T>);
 
-impl<'world, 'state, 'a, T: 'static + Send + Sync + bevy::prelude::Component> ComponentSetOption<T>
+impl<'world, 'state, 'a, T: 'static + Send + Sync + bevy_ecs::prelude::Component> ComponentSetOption<T>
     for QueryComponentSetMut<'world, 'state, 'a, T>
 {
     #[inline(always)]
@@ -150,7 +149,7 @@ impl<'world, 'state, 'a, T: 'static + Send + Sync + bevy::prelude::Component> Co
     }
 }
 
-impl<'world, 'state, 'a, T: 'static + Send + Sync + bevy::prelude::Component> ComponentSet<T>
+impl<'world, 'state, 'a, T: 'static + Send + Sync + bevy_ecs::prelude::Component> ComponentSet<T>
     for QueryComponentSetMut<'world, 'state, 'a, T>
 {
     #[inline(always)]
@@ -168,7 +167,7 @@ impl<'world, 'state, 'a, T: 'static + Send + Sync + bevy::prelude::Component> Co
     }
 }
 
-impl<'world, 'state, 'a, T: 'static + Send + Sync + bevy::prelude::Component> ComponentSetMut<T>
+impl<'world, 'state, 'a, T: 'static + Send + Sync + bevy_ecs::prelude::Component> ComponentSetMut<T>
     for QueryComponentSetMut<'world, 'state, 'a, T>
 {
     #[inline(always)]

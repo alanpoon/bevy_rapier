@@ -1,4 +1,6 @@
-use bevy::prelude::*;
+use bevy_app::prelude::*;
+use bevy_ecs::prelude::*;
+
 use std::ops::{Deref, DerefMut};
 macro_rules! impl_component_wrapper(
     ($Wrapper:ident, $Inner: ty) => {

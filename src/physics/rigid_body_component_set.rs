@@ -5,7 +5,8 @@ use crate::physics::wrapper::{
     RigidBodyForcesComponent, RigidBodyIdsComponent, RigidBodyMassPropsComponent,
     RigidBodyPositionComponent, RigidBodyTypeComponent, RigidBodyVelocityComponent,
 };
-use bevy::prelude::*;
+use bevy_app::prelude::*;
+use bevy_ecs::prelude::*;
 use rapier::data::{ComponentSet, ComponentSetMut, ComponentSetOption, Index};
 use rapier::dynamics;
 impl IntoHandle<dynamics::RigidBodyHandle> for Entity {

@@ -6,9 +6,10 @@ use crate::physics::{
 use crate::prelude::IntersectionEvent;
 use crate::rapier::geometry::ContactEvent;
 use crate::rapier::pipeline::QueryPipeline;
-use bevy::app::Events;
-use bevy::ecs::query::WorldQuery;
-use bevy::prelude::*;
+use bevy_app::event::Events;
+use bevy_ecs::query::WorldQuery;
+use bevy_app::prelude::*;
+use bevy_ecs::prelude::*;
 use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
 };

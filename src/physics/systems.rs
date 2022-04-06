@@ -17,9 +17,12 @@ use crate::prelude::{ContactEvent, IntersectionEvent};
 use crate::rapier::data::ComponentSetOption;
 
 use crate::rapier::pipeline::QueryPipeline;
-use bevy::ecs::entity::Entities;
-use bevy::ecs::query::{QueryState, WorldQuery};
-use bevy::prelude::*;
+use bevy_ecs::entity::Entities;
+use bevy_ecs::query::{QueryState, WorldQuery};
+use bevy_ecs::prelude::*;
+use bevy_app::prelude::*;
+use bevy_transform::prelude::*;
+
 use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
 };

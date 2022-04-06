@@ -7,9 +7,10 @@ use crate::physics::{
 use crate::physics::wrapper::{
     ColliderChangesComponent, ColliderParentComponent, RigidBodyChangesComponent,
 };
-use bevy::ecs::entity::Entities;
-use bevy::ecs::query::WorldQuery;
-use bevy::prelude::*;
+use bevy_ecs::entity::Entities;
+use bevy_ecs::query::WorldQuery;
+use bevy_app::prelude::*;
+use bevy_ecs::prelude::*;
 use rapier::data::{ComponentSet, ComponentSetMut};
 use rapier::prelude::{
     ContactEvent, ContactModificationContext, ContactPair, EventHandler, ImpulseJointSet,
