@@ -10,6 +10,8 @@ use bevy_ecs::event::Events;
 use bevy_ecs::query::WorldQuery;
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
+use crate::physics::time::Time;
+
 use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
 };
@@ -56,12 +58,12 @@ impl<UserData: 'static + WorldQuery + Send + Sync> Plugin for RapierPhysicsPlugi
         app.add_stage_before(
             CoreStage::PreUpdate,
             PhysicsStages::FinalizeCreations,
-            SystemStage::parallel(),
+            SystemStage::single_threaded(),
         )
         .add_stage_before(
             CoreStage::PostUpdate,
             PhysicsStages::SyncTransforms,
-            SystemStage::parallel(),
+            SystemStage::single_threaded(),
         )
         .insert_resource(PhysicsPipeline::new())
         .insert_resource(QueryPipeline::new())
@@ -78,6 +80,7 @@ impl<UserData: 'static + WorldQuery + Send + Sync> Plugin for RapierPhysicsPlugi
         .insert_resource(SimulationToRenderTime::default())
         .insert_resource(JointsEntityMap::default())
         .insert_resource(ModificationTracker::default())
+        .insert_resource(Time::default())
         .add_system_to_stage(
             PhysicsStages::FinalizeCreations,
             physics::attach_bodies_and_colliders_system
@@ -96,14 +99,15 @@ impl<UserData: 'static + WorldQuery + Send + Sync> Plugin for RapierPhysicsPlugi
             CoreStage::Update,
             physics::step_world_system::<UserData>.label(physics::PhysicsSystems::StepWorld),
         )
-        .add_system_to_stage(
-            PhysicsStages::SyncTransforms,
-            physics::sync_transforms.label(physics::PhysicsSystems::SyncTransforms),
-        )
-        .add_system_to_stage(
-            CoreStage::PostUpdate,
-            physics::collect_removals.label(physics::PhysicsSystems::CollectRemovals),
-        );
+        // .add_system_to_stage(
+        //     PhysicsStages::SyncTransforms,
+        //     physics::sync_transforms.label(physics::PhysicsSystems::SyncTransforms),
+        // )
+        // .add_system_to_stage(
+        //     CoreStage::PostUpdate,
+        //     physics::collect_removals.label(physics::PhysicsSystems::CollectRemovals),
+        // )
+        ;
         if app
             .world
             .get_resource::<PhysicsHooksWithQueryObject<UserData>>()

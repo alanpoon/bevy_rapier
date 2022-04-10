@@ -9,6 +9,7 @@ use crate::rapier::data::{ComponentSet, ComponentSetMut, ComponentSetOption, Ind
 //use crate::rapier::prelude::*;
 use crate::rapier::prelude::JointHandle;
 use bevy_ecs::prelude::*;
+
 pub trait IntoHandle<H> {
     fn handle(self) -> H;
 }
@@ -197,3 +198,4 @@ mod plugins;
 mod resources;
 mod rigid_body_component_set;
 mod systems;
+pub mod time;

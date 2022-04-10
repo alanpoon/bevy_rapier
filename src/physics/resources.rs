@@ -9,7 +9,6 @@ use crate::physics::wrapper::{
 };
 use bevy_ecs::entity::Entities;
 use bevy_ecs::query::WorldQuery;
-use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use rapier::data::{ComponentSet, ComponentSetMut};
 use rapier::prelude::{

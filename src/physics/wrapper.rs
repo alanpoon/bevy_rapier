@@ -1,4 +1,3 @@
-use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 
 use std::ops::{Deref, DerefMut};

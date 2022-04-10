@@ -1,4 +1,3 @@
-use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use rapier::dynamics::{JointData, JointHandle, RigidBodyHandle};
 use rapier::geometry::ColliderHandle;

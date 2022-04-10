@@ -20,9 +20,9 @@ use crate::rapier::pipeline::QueryPipeline;
 use bevy_ecs::entity::Entities;
 use bevy_ecs::query::{QueryState, WorldQuery};
 use bevy_ecs::prelude::*;
-use bevy_app::prelude::*;
+use bevy_math::prelude::*;
 use bevy_transform::prelude::*;
-
+use crate::physics::time::Time;
 use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
 };
@@ -197,6 +197,7 @@ pub fn create_joints_system(
 pub fn step_world_system<UserData: 'static + WorldQuery>(
     mut commands: Commands,
     (time, mut sim_to_render_time): (Res<Time>, ResMut<SimulationToRenderTime>),
+     //mut sim_to_render_time:  ResMut<SimulationToRenderTime>,
     (configuration, integration_parameters): (Res<RapierConfiguration>, Res<IntegrationParameters>),
     mut modifs_tracker: ResMut<ModificationTracker>,
     (
@@ -236,6 +237,7 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
     ),
     entities: &Entities,
 ) {
+    return;
     use std::mem::replace;
 
     let events = EventQueue {
@@ -266,8 +268,8 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
 
     match configuration.timestep_mode {
         TimestepMode::InterpolatedTimestep => {
-            sim_to_render_time.diff += time.delta_seconds();
-
+            //sim_to_render_time.diff += time.delta_seconds();
+            
             let sim_dt = integration_parameters.dt;
             while sim_to_render_time.diff >= sim_dt {
                 if configuration.physics_pipeline_active {
@@ -322,8 +324,8 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
                 let mut new_integration_parameters = *integration_parameters;
 
                 if configuration.timestep_mode == TimestepMode::VariableTimestep {
-                    new_integration_parameters.dt =
-                        time.delta_seconds().min(integration_parameters.dt);
+                    // new_integration_parameters.dt =
+                    //     time.delta_seconds().min(integration_parameters.dt);
                 }
                 // let mut modified_bodies = modifs_tracker.modified_bodies.iter().map(|a| a.0).collect();
                 // let mut modified_colliders = modifs_tracker.modified_colliders.iter().map(|a|a.0).collect();
