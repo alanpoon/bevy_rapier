@@ -10,7 +10,7 @@ use bevy_ecs::event::Events;
 use bevy_ecs::query::WorldQuery;
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-use crate::physics::time::Time;
+use crate::physics::time::{TimeInterface,Time};
 
 use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
@@ -33,11 +33,11 @@ pub type NoUserData<'a> = &'a S;
 /// - The broad phase and narrow-phase.
 /// - The event queue.
 /// - Systems responsible for executing one physics timestep at each Bevy update stage.
-pub struct RapierPhysicsPlugin<UserData>(PhantomData<UserData>);
+pub struct RapierPhysicsPlugin<UserData,X>(PhantomData<UserData>,PhantomData<X>);
 
-impl<UserData> Default for RapierPhysicsPlugin<UserData> {
+impl<UserData,X> Default for RapierPhysicsPlugin<UserData,X> {
     fn default() -> Self {
-        Self(PhantomData)
+        Self(PhantomData,PhantomData)
     }
 }
 
@@ -53,7 +53,7 @@ pub enum PhysicsStages {
     SyncTransforms,
 }
 
-impl<UserData: 'static + WorldQuery + Send + Sync> Plugin for RapierPhysicsPlugin<UserData> {
+impl<UserData: 'static + WorldQuery + Send + Sync,X:'static + Component+ TimeInterface + Send + Sync> Plugin for RapierPhysicsPlugin<UserData,X> {
     fn build(&self, app: &mut App) {
         app.add_stage_before(
             CoreStage::PreUpdate,
@@ -97,16 +97,16 @@ impl<UserData: 'static + WorldQuery + Send + Sync> Plugin for RapierPhysicsPlugi
         )
         .add_system_to_stage(
             CoreStage::Update,
-            physics::step_world_system::<UserData>.label(physics::PhysicsSystems::StepWorld),
+            physics::step_world_system::<UserData,X>.label(physics::PhysicsSystems::StepWorld),
         )
-        // .add_system_to_stage(
-        //     PhysicsStages::SyncTransforms,
-        //     physics::sync_transforms.label(physics::PhysicsSystems::SyncTransforms),
-        // )
-        // .add_system_to_stage(
-        //     CoreStage::PostUpdate,
-        //     physics::collect_removals.label(physics::PhysicsSystems::CollectRemovals),
-        // )
+        .add_system_to_stage(
+            PhysicsStages::SyncTransforms,
+            physics::sync_transforms.label(physics::PhysicsSystems::SyncTransforms),
+        )
+        .add_system_to_stage(
+            CoreStage::PostUpdate,
+            physics::collect_removals.label(physics::PhysicsSystems::CollectRemovals),
+        )
         ;
         if app
             .world

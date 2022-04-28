@@ -31,5 +31,6 @@ pub mod prelude {
         RapierConfiguration, RapierPhysicsPlugin, RigidBodyBundle, RigidBodyComponentsSet,
         RigidBodyPositionSync,
     };
+    
     pub use rapier::prelude::*;
 }

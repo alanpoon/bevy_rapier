@@ -22,7 +22,8 @@ use bevy_ecs::query::{QueryState, WorldQuery};
 use bevy_ecs::prelude::*;
 use bevy_math::prelude::*;
 use bevy_transform::prelude::*;
-use crate::physics::time::Time;
+use log::info;
+use crate::physics::time::{TimeInterface,Time};
 use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
 };
@@ -192,11 +193,34 @@ pub fn create_joints_system(
         joints_entity_map.0.insert(entity, handle);
     }
 }
+use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+
+    // The `console.log` is quite polymorphic, so we can bind it with multiple
+    // signatures. Note that we need to use `js_name` to ensure we always call
+    // `log` in JS.
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn log_u32(a: u32);
+
+    // Multiple arguments too!
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn log_many(a: &str, b: &str);
+}
+macro_rules! console_log {
+  // Note that this is using the `log` function imported above during
+  // `bare_bones`
+  ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+}
 /// System responsible for performing one timestep of the physics world.
-pub fn step_world_system<UserData: 'static + WorldQuery>(
+pub fn step_world_system<UserData: 'static + WorldQuery,X:TimeInterface + Component>(
     mut commands: Commands,
-    (time, mut sim_to_render_time): (Res<Time>, ResMut<SimulationToRenderTime>),
+    (time, mut sim_to_render_time): (Res<X>, ResMut<SimulationToRenderTime>),
      //mut sim_to_render_time:  ResMut<SimulationToRenderTime>,
     (configuration, integration_parameters): (Res<RapierConfiguration>, Res<IntegrationParameters>),
     mut modifs_tracker: ResMut<ModificationTracker>,
@@ -237,7 +261,7 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
     ),
     entities: &Entities,
 ) {
-    return;
+
     use std::mem::replace;
 
     let events = EventQueue {
@@ -265,11 +289,11 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
         user_data,
         hooks: &*hooks.0,
     };
-
+    //console_log!("step_world_system");
     match configuration.timestep_mode {
         TimestepMode::InterpolatedTimestep => {
-            //sim_to_render_time.diff += time.delta_seconds();
-            
+            sim_to_render_time.diff += time.delta_seconds();
+            //console_log!("sim_to_render_time {:?}",sim_to_render_time.diff);
             let sim_dt = integration_parameters.dt;
             while sim_to_render_time.diff >= sim_dt {
                 if configuration.physics_pipeline_active {
@@ -324,8 +348,8 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
                 let mut new_integration_parameters = *integration_parameters;
 
                 if configuration.timestep_mode == TimestepMode::VariableTimestep {
-                    // new_integration_parameters.dt =
-                    //     time.delta_seconds().min(integration_parameters.dt);
+                    new_integration_parameters.dt =
+                        time.delta_seconds().min(integration_parameters.dt);
                 }
                 // let mut modified_bodies = modifs_tracker.modified_bodies.iter().map(|a| a.0).collect();
                 // let mut modified_colliders = modifs_tracker.modified_colliders.iter().map(|a|a.0).collect();
@@ -411,14 +435,12 @@ pub fn sync_transforms(
     let dt = sim_to_render_time.diff;
     let sim_dt = integration_parameters.dt;
     let alpha = dt / sim_dt;
-
     // Sync bodies.
     for (entity, rb_pos, sync_mode, mut transform, global_transform) in sync_query.q0().iter_mut() {
         let mut new_transform = transform
             .as_deref_mut()
             .map(|t| t.clone())
             .unwrap_or(Transform::identity());
-
         match sync_mode {
             RigidBodyPositionSync::Discrete => {
                 sync_transform(&rb_pos.position, configuration.scale, &mut new_transform)
