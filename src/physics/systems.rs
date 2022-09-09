@@ -1,29 +1,36 @@
 use crate::physics::{
-    ColliderComponentsQuery, ColliderComponentsSet, ColliderPositionSync, ComponentSetQueryMut,
+    ColliderComponentsQuerySet, ColliderComponentsSet, ColliderPositionSync, ComponentSetQueryMut,
     EventQueue, IntoEntity, IntoHandle, JointBuilderComponent, JointHandleComponent,
     JointsEntityMap, ModificationTracker, PhysicsHooksWithQueryInstance,
     PhysicsHooksWithQueryObject, QueryComponentSetMut, RapierConfiguration,
-    RigidBodyComponentsQuery, RigidBodyComponentsSet, RigidBodyPositionSync,
+    RigidBodyComponentsQuerySet, RigidBodyComponentsSet, RigidBodyPositionSync,
     SimulationToRenderTime, TimestepMode,
 };
 
+use crate::physics::wrapper::{
+    ColliderBroadPhaseDataComponent, ColliderChangesComponent, ColliderMassPropsComponent,
+    ColliderParentComponent, ColliderPositionComponent, ColliderShapeComponent,
+    RigidBodyCcdComponent, RigidBodyChangesComponent, RigidBodyCollidersComponent,
+    RigidBodyIdsComponent, RigidBodyMassPropsComponent, RigidBodyPositionComponent,
+};
 use crate::prelude::{ContactEvent, IntersectionEvent};
 use crate::rapier::data::ComponentSetOption;
-use crate::rapier::dynamics::{
-    RigidBodyCcd, RigidBodyChanges, RigidBodyColliders, RigidBodyIds, RigidBodyMassProps,
-    RigidBodyPosition,
-};
-use crate::rapier::geometry::{
-    ColliderBroadPhaseData, ColliderChanges, ColliderMassProps, ColliderParent, ColliderPosition,
-    ColliderShape,
-};
+
 use crate::rapier::pipeline::QueryPipeline;
-use bevy::ecs::query::WorldQuery;
-use bevy::prelude::*;
-use rapier::dynamics::{CCDSolver, IntegrationParameters, IslandManager, JointSet};
+use bevy_ecs::entity::Entities;
+use bevy_ecs::query::{QueryState, WorldQuery};
+use bevy_ecs::prelude::*;
+use bevy_math::prelude::*;
+use bevy_transform::prelude::*;
+use log::info;
+use crate::physics::time::{TimeInterface,Time};
+use rapier::dynamics::{
+    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+};
 use rapier::geometry::{BroadPhase, NarrowPhase};
 use rapier::math::Isometry;
 use rapier::pipeline::PhysicsPipeline;
+use rapier::{dynamics, geometry};
 use std::sync::RwLock;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
@@ -40,15 +47,15 @@ pub enum PhysicsSystems {
 /// builder resources.
 pub fn attach_bodies_and_colliders_system(
     mut commands: Commands,
-    body_query: Query<&RigidBodyPosition>,
+    body_query: Query<&RigidBodyPositionComponent>,
     parent_query: Query<&Parent>,
     mut colliders_query: Query<
         (
             Entity,
             // Colliders.
-            &ColliderPosition,
+            &ColliderPositionComponent,
         ),
-        Without<ColliderParent>,
+        Without<ColliderParentComponent>,
     >,
 ) {
     'outer: for (collider_entity, co_pos) in colliders_query.iter_mut() {
@@ -65,10 +72,10 @@ pub fn attach_bodies_and_colliders_system(
             }
         }
 
-        let co_parent = ColliderParent {
-            pos_wrt_parent: co_pos.0,
+        let co_parent = ColliderParentComponent(geometry::ColliderParent {
+            pos_wrt_parent: *co_pos.0,
             handle: body_entity.handle(),
-        };
+        });
         commands.entity(collider_entity).insert(co_parent);
     }
 }
@@ -79,24 +86,24 @@ pub fn finalize_collider_attach_to_bodies(
     mut modif_tracker: ResMut<ModificationTracker>,
     mut body_query: Query<(
         // Rigid-bodies.
-        &mut RigidBodyChanges,
-        &mut RigidBodyCcd,
-        &mut RigidBodyColliders,
-        &mut RigidBodyMassProps,
-        &RigidBodyPosition,
+        &mut RigidBodyChangesComponent,
+        &mut RigidBodyCcdComponent,
+        &mut RigidBodyCollidersComponent,
+        &mut RigidBodyMassPropsComponent,
+        &RigidBodyPositionComponent,
     )>,
     mut colliders_query: Query<
         (
             Entity,
             // Collider.
-            &mut ColliderChanges,
-            &mut ColliderBroadPhaseData,
-            &mut ColliderPosition,
-            &ColliderShape,
-            &ColliderMassProps,
-            &ColliderParent,
+            &mut ColliderChangesComponent,
+            &mut ColliderBroadPhaseDataComponent,
+            &mut ColliderPositionComponent,
+            &ColliderShapeComponent,
+            &ColliderMassPropsComponent,
+            &ColliderParentComponent,
         ),
-        Added<ColliderParent>,
+        Added<ColliderParentComponent>,
     >,
 ) {
     for (
@@ -120,7 +127,7 @@ pub fn finalize_collider_attach_to_bodies(
             // Update the modification tracker.
             // NOTE: this must be done before the `.attach_collider` because
             //       `.attach_collider` will set the `MODIFIED` flag.
-            if !rb_changes.contains(RigidBodyChanges::MODIFIED) {
+            if !rb_changes.contains(dynamics::RigidBodyChanges::MODIFIED) {
                 modif_tracker.modified_bodies.push(co_parent.handle);
             }
 
@@ -133,8 +140,8 @@ pub fn finalize_collider_attach_to_bodies(
                 .colliders_parent
                 .insert(collider_entity.handle(), co_parent.handle);
 
-            *co_changes = ColliderChanges::default();
-            *co_bf_data = ColliderBroadPhaseData::default();
+            *co_changes = ColliderChangesComponent::default();
+            *co_bf_data = ColliderBroadPhaseDataComponent::default();
             rb_colliders.attach_collider(
                 &mut rb_changes,
                 &mut rb_ccd,
@@ -153,10 +160,10 @@ pub fn finalize_collider_attach_to_bodies(
 /// System responsible for creating Rapier joints from their builder resources.
 pub fn create_joints_system(
     mut commands: Commands,
-    mut joints: ResMut<JointSet>,
+    mut joints: ResMut<ImpulseJointSet>,
     mut joints_entity_map: ResMut<JointsEntityMap>,
     query: Query<(Entity, &JointBuilderComponent)>,
-    bodies: ComponentSetQueryMut<RigidBodyIds>,
+    bodies: ComponentSetQueryMut<RigidBodyIdsComponent>,
 ) {
     let bodies = QueryComponentSetMut(bodies);
 
@@ -164,13 +171,11 @@ pub fn create_joints_system(
         // Make sure the rigid-bodies the joint it attached to exist.
         if bodies
             .0
-            .q0()
-            .get_component::<RigidBodyIds>(joint.entity1)
+            .get_component::<RigidBodyIdsComponent>(joint.entity1)
             .is_err()
             || bodies
                 .0
-                .q0()
-                .get_component::<RigidBodyIds>(joint.entity2)
+                .get_component::<RigidBodyIdsComponent>(joint.entity2)
                 .is_err()
         {
             continue;
@@ -188,11 +193,35 @@ pub fn create_joints_system(
         joints_entity_map.0.insert(entity, handle);
     }
 }
+use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+
+    // The `console.log` is quite polymorphic, so we can bind it with multiple
+    // signatures. Note that we need to use `js_name` to ensure we always call
+    // `log` in JS.
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn log_u32(a: u32);
+
+    // Multiple arguments too!
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn log_many(a: &str, b: &str);
+}
+macro_rules! console_log {
+  // Note that this is using the `log` function imported above during
+  // `bare_bones`
+  ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+}
 /// System responsible for performing one timestep of the physics world.
-pub fn step_world_system<UserData: 'static + WorldQuery>(
+pub fn step_world_system<UserData: 'static + WorldQuery,X:TimeInterface + Component>(
     mut commands: Commands,
-    (time, mut sim_to_render_time): (Res<Time>, ResMut<SimulationToRenderTime>),
+    (time, mut sim_to_render_time): (Res<X>, ResMut<SimulationToRenderTime>),
+     //mut sim_to_render_time:  ResMut<SimulationToRenderTime>,
     (configuration, integration_parameters): (Res<RapierConfiguration>, Res<IntegrationParameters>),
     mut modifs_tracker: ResMut<ModificationTracker>,
     (
@@ -202,7 +231,8 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
         mut broad_phase,
         mut narrow_phase,
         mut ccd_solver,
-        mut joints,
+        mut impulse_joints,
+        mut multibody_joints,
         mut joints_entity_map,
     ): (
         ResMut<PhysicsPipeline>,
@@ -211,7 +241,8 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
         ResMut<BroadPhase>,
         ResMut<NarrowPhase>,
         ResMut<CCDSolver>,
-        ResMut<JointSet>,
+        ResMut<ImpulseJointSet>,
+        ResMut<MultibodyJointSet>,
         ResMut<JointsEntityMap>,
     ),
     hooks: Res<PhysicsHooksWithQueryObject<UserData>>,
@@ -221,33 +252,35 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
     ),
     user_data: Query<UserData>,
     mut position_sync_query: Query<(Entity, &mut RigidBodyPositionSync)>,
-    bodies_query: RigidBodyComponentsQuery,
-    colliders_query: ColliderComponentsQuery,
+    mut bodies_query: RigidBodyComponentsQuerySet,
+    mut colliders_query: ColliderComponentsQuerySet,
     (removed_bodies, removed_colliders, removed_joints): (
-        RemovedComponents<RigidBodyChanges>,
-        RemovedComponents<ColliderChanges>,
+        RemovedComponents<RigidBodyChangesComponent>,
+        RemovedComponents<ColliderChangesComponent>,
         RemovedComponents<JointHandleComponent>,
     ),
+    entities: &Entities,
 ) {
+
     use std::mem::replace;
 
     let events = EventQueue {
         intersection_events: RwLock::new(intersection_events),
         contact_events: RwLock::new(contact_events),
     };
-    let mut rigid_body_components_set = RigidBodyComponentsSet(bodies_query);
-    let mut collider_components_set = ColliderComponentsSet(colliders_query);
-
     modifs_tracker.detect_removals(removed_bodies, removed_colliders, removed_joints);
-    modifs_tracker.detect_modifications(
-        &mut rigid_body_components_set.0,
-        &mut collider_components_set.0,
-    );
+    modifs_tracker.detect_modifications(bodies_query.q1(), colliders_query.q1());
+
+    let mut rigid_body_components_set = RigidBodyComponentsSet(bodies_query.q0());
+    let mut collider_components_set = ColliderComponentsSet(colliders_query.q0());
+
     modifs_tracker.propagate_removals(
+        &entities,
         &mut commands,
         &mut islands,
         &mut rigid_body_components_set,
-        &mut joints,
+        &mut impulse_joints,
+        &mut multibody_joints,
         &mut joints_entity_map,
     );
     islands.cleanup_removed_rigid_bodies(&mut rigid_body_components_set);
@@ -256,11 +289,11 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
         user_data,
         hooks: &*hooks.0,
     };
-
+    //console_log!("step_world_system");
     match configuration.timestep_mode {
         TimestepMode::InterpolatedTimestep => {
             sim_to_render_time.diff += time.delta_seconds();
-
+            //console_log!("sim_to_render_time {:?}",sim_to_render_time.diff);
             let sim_dt = integration_parameters.dt;
             while sim_to_render_time.diff >= sim_dt {
                 if configuration.physics_pipeline_active {
@@ -274,7 +307,7 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
                             if let RigidBodyPositionSync::Interpolated { prev_pos } =
                                 &mut *position_sync
                             {
-                                let rb_pos: Option<&RigidBodyPosition> =
+                                let rb_pos: Option<&dynamics::RigidBodyPosition> =
                                     rigid_body_components_set.get(entity.handle());
                                 if let Some(rb_pos) = rb_pos {
                                     *prev_pos = Some(rb_pos.position);
@@ -282,7 +315,9 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
                             }
                         }
                     }
-
+                    // let mut modified_bodies = modifs_tracker.modified_bodies.iter().map(|a| a.0).collect();
+                    // let mut modified_colliders = modifs_tracker.modified_colliders.iter().map(|a|a.0).collect();
+                    // let mut removed_colliders = modifs_tracker.removed_colliders.iter().map(|a|a.0).collect();
                     pipeline.step_generic(
                         &configuration.gravity,
                         &integration_parameters,
@@ -294,12 +329,15 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
                         &mut replace(&mut modifs_tracker.modified_bodies, vec![]),
                         &mut replace(&mut modifs_tracker.modified_colliders, vec![]),
                         &mut replace(&mut modifs_tracker.removed_colliders, vec![]),
-                        &mut joints,
+                        &mut impulse_joints,
+                        &mut multibody_joints,
                         &mut ccd_solver,
                         &physics_hooks,
                         &events,
                     );
-
+                    // modifs_tracker.modified_bodies = modified_bodies.iter().map(|a|RigidBodyHandle(*a)).collect();
+                    // modifs_tracker.modified_colliders = modified_colliders.iter().map(|a|ColliderHandle(*a)).collect();
+                    // modifs_tracker.removed_colliders = removed_colliders.iter().map(|a|ColliderHandle(*a)).collect();
                     modifs_tracker.clear_modified_and_removed();
                 }
                 sim_to_render_time.diff -= sim_dt;
@@ -313,7 +351,9 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
                     new_integration_parameters.dt =
                         time.delta_seconds().min(integration_parameters.dt);
                 }
-
+                // let mut modified_bodies = modifs_tracker.modified_bodies.iter().map(|a| a.0).collect();
+                // let mut modified_colliders = modifs_tracker.modified_colliders.iter().map(|a|a.0).collect();
+                // let mut removed_colliders = modifs_tracker.removed_colliders.iter().map(|a|a.0).collect();
                 pipeline.step_generic(
                     &configuration.gravity,
                     &new_integration_parameters,
@@ -325,12 +365,15 @@ pub fn step_world_system<UserData: 'static + WorldQuery>(
                     &mut replace(&mut modifs_tracker.modified_bodies, vec![]),
                     &mut replace(&mut modifs_tracker.modified_colliders, vec![]),
                     &mut replace(&mut modifs_tracker.removed_colliders, vec![]),
-                    &mut joints,
+                    &mut impulse_joints,
+                    &mut multibody_joints,
                     &mut ccd_solver,
                     &physics_hooks,
                     &events,
                 );
-
+                // modifs_tracker.modified_bodies = modified_bodies.iter().map(|a|RigidBodyHandle(*a)).collect();
+                // modifs_tracker.modified_colliders = modified_colliders.iter().map(|a|ColliderHandle(*a)).collect();
+                // modifs_tracker.removed_colliders = removed_colliders.iter().map(|a|ColliderHandle(*a)).collect();
                 modifs_tracker.clear_modified_and_removed();
             }
         }
@@ -351,14 +394,16 @@ pub(crate) fn sync_transform(pos: &Isometry<f32>, scale: f32, transform: &mut Tr
     // Do not touch the 'z' part of the translation, used in Bevy for 2d layering
     transform.translation.x = tra.x * scale;
     transform.translation.y = tra.y * scale;
-    transform.rotation = rot;
+    transform.rotation = Quat::from_xyzw(rot.x, rot.y, rot.z, rot.w);
 }
 
 #[cfg(feature = "dim3")]
 pub(crate) fn sync_transform(pos: &Isometry<f32>, scale: f32, transform: &mut Transform) {
     let (tra, rot) = (*pos).into();
-    transform.translation = tra * scale;
-    transform.rotation = rot;
+    transform.translation.x = tra.x * scale;
+    transform.translation.y = tra.y * scale;
+    transform.translation.z = tra.z * scale;
+    transform.rotation = Quat::from_xyzw(rot.x, rot.y, rot.z, rot.w);
 }
 
 /// System responsible for writing the rigid-bodies positions into the Bevy translation and rotation components.
@@ -370,18 +415,18 @@ pub fn sync_transforms(
     rigid_body_sync_mode: Query<&RigidBodyPositionSync>,
     // TODO: add some Changed filters to only sync when something moved?
     mut sync_query: QuerySet<(
-        Query<(
+        QueryState<(
             Entity,
-            &RigidBodyPosition,
+            &RigidBodyPositionComponent,
             &RigidBodyPositionSync,
             Option<&mut Transform>,
             Option<&mut GlobalTransform>,
         )>,
-        Query<(
+        QueryState<(
             Entity,
-            &ColliderPosition,
+            &ColliderPositionComponent,
             &ColliderPositionSync,
-            Option<&ColliderParent>,
+            Option<&ColliderParentComponent>,
             Option<&mut Transform>,
             Option<&mut GlobalTransform>,
         )>,
@@ -390,16 +435,12 @@ pub fn sync_transforms(
     let dt = sim_to_render_time.diff;
     let sim_dt = integration_parameters.dt;
     let alpha = dt / sim_dt;
-
     // Sync bodies.
-    for (entity, rb_pos, sync_mode, mut transform, global_transform) in
-        sync_query.q0_mut().iter_mut()
-    {
+    for (entity, rb_pos, sync_mode, mut transform, global_transform) in sync_query.q0().iter_mut() {
         let mut new_transform = transform
             .as_deref_mut()
             .map(|t| t.clone())
             .unwrap_or(Transform::identity());
-
         match sync_mode {
             RigidBodyPositionSync::Discrete => {
                 sync_transform(&rb_pos.position, configuration.scale, &mut new_transform)
@@ -431,7 +472,7 @@ pub fn sync_transforms(
 
     // Sync colliders.
     for (entity, co_pos, _, co_parent, mut transform, mut global_transform) in
-        sync_query.q1_mut().iter_mut()
+        QuerySet::<(_, _)>::q1(&mut sync_query).iter_mut()
     {
         let mut new_transform = transform
             .as_deref_mut()
@@ -486,8 +527,8 @@ pub fn sync_transforms(
 /// or joints.
 pub fn collect_removals(
     mut modification_tracker: ResMut<ModificationTracker>,
-    removed_bodies: RemovedComponents<RigidBodyChanges>,
-    removed_colliders: RemovedComponents<ColliderChanges>,
+    removed_bodies: RemovedComponents<RigidBodyChangesComponent>,
+    removed_colliders: RemovedComponents<ColliderChangesComponent>,
     removed_joints: RemovedComponents<JointHandleComponent>,
 ) {
     modification_tracker.detect_removals(removed_bodies, removed_colliders, removed_joints);

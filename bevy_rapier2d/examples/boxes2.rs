@@ -3,16 +3,14 @@ extern crate rapier2d as rapier; // For the debug UI.
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use bevy::render::pass::ClearColor;
 use nalgebra::Isometry2;
 use rapier2d::pipeline::PhysicsPipeline;
 use ui::DebugUiPlugin;
-
 #[path = "../../src_debug_ui/mod.rs"]
 mod ui;
 
 fn main() {
-    App::build()
+    App::new()
         .insert_resource(ClearColor(Color::rgb(
             0xF9 as f32 / 255.0,
             0xF9 as f32 / 255.0,
@@ -20,8 +18,6 @@ fn main() {
         )))
         .insert_resource(Msaa::default())
         .add_plugins(DefaultPlugins)
-        .add_plugin(bevy_winit::WinitPlugin::default())
-        .add_plugin(bevy_wgpu::WgpuPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierRenderPlugin)
         .add_plugin(DebugUiPlugin)
@@ -40,9 +36,9 @@ fn setup_graphics(mut commands: Commands, mut configuration: ResMut<RapierConfig
 
     let mut camera = OrthographicCameraBundle::new_2d();
     camera.transform = Transform::from_translation(Vec3::new(0.0, 200.0, 0.0));
-    commands.spawn_bundle(LightBundle {
+    commands.spawn_bundle(PointLightBundle {
         transform: Transform::from_translation(Vec3::new(1000.0, 10.0, 2000.0)),
-        light: Light {
+        point_light: PointLight {
             intensity: 100_000_000_.0,
             range: 6000.0,
             ..Default::default()
@@ -59,7 +55,7 @@ pub fn setup_physics(mut commands: Commands) {
     let ground_size = 25.0;
 
     let collider = ColliderBundle {
-        shape: ColliderShape::cuboid(ground_size, 1.0),
+        shape: ColliderShape::cuboid(ground_size, 1.0).into(),
         ..Default::default()
     };
     commands
@@ -68,7 +64,7 @@ pub fn setup_physics(mut commands: Commands) {
         .insert(ColliderPositionSync::Discrete);
 
     let collider = ColliderBundle {
-        shape: ColliderShape::cuboid(ground_size * 2.0, 1.2),
+        shape: ColliderShape::cuboid(ground_size * 2.0, 1.2).into(),
         position: Isometry2::new(
             [ground_size, ground_size * 2.0].into(),
             std::f32::consts::FRAC_PI_2,
@@ -82,7 +78,7 @@ pub fn setup_physics(mut commands: Commands) {
         .insert(ColliderPositionSync::Discrete);
 
     let collider = ColliderBundle {
-        shape: ColliderShape::cuboid(ground_size * 2.0, 1.2),
+        shape: ColliderShape::cuboid(ground_size * 2.0, 1.2).into(),
         position: Isometry2::new(
             [-ground_size, ground_size * 2.0].into(),
             std::f32::consts::FRAC_PI_2,
@@ -118,7 +114,7 @@ pub fn setup_physics(mut commands: Commands) {
                 ..Default::default()
             };
             let collider = ColliderBundle {
-                shape: ColliderShape::cuboid(rad, rad),
+                shape: ColliderShape::cuboid(rad, rad).into(),
                 ..Default::default()
             };
             commands

@@ -3,14 +3,13 @@ extern crate rapier2d as rapier; // For the debug UI.
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use bevy::render::pass::ClearColor;
 use ui::DebugUiPlugin;
 
 #[path = "../../src_debug_ui/mod.rs"]
 mod ui;
 
 fn main() {
-    App::build()
+    App::new()
         .insert_resource(ClearColor(Color::rgb(
             0xF9 as f32 / 255.0,
             0xF9 as f32 / 255.0,
@@ -18,8 +17,6 @@ fn main() {
         )))
         .insert_resource(Msaa::default())
         .add_plugins(DefaultPlugins)
-        .add_plugin(bevy_winit::WinitPlugin::default())
-        .add_plugin(bevy_wgpu::WgpuPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierRenderPlugin)
         .add_plugin(DebugUiPlugin)
@@ -33,9 +30,9 @@ fn setup_graphics(mut commands: Commands, mut configuration: ResMut<RapierConfig
 
     let mut camera = OrthographicCameraBundle::new_2d();
     camera.transform = Transform::from_translation(Vec3::new(0.0, 200.0, 0.0));
-    commands.spawn_bundle(LightBundle {
+    commands.spawn_bundle(PointLightBundle {
         transform: Transform::from_translation(Vec3::new(1000.0, 10.0, 2000.0)),
-        light: Light {
+        point_light: PointLight {
             intensity: 100_000_000_.0,
             range: 6000.0,
             ..Default::default()
@@ -54,7 +51,7 @@ pub fn setup_physics(mut commands: Commands) {
 
     let collider = ColliderBundle {
         position: [0.0, -ground_height].into(),
-        shape: ColliderShape::cuboid(ground_size, ground_height),
+        shape: ColliderShape::cuboid(ground_size, ground_height).into(),
         ..Default::default()
     };
     commands
@@ -89,16 +86,16 @@ pub fn setup_physics(mut commands: Commands) {
 
             // Attach multiple colliders to this rigid-body using Bevy hierarchy.
             let collider1 = ColliderBundle {
-                shape: ColliderShape::cuboid(rad * 10.0, rad),
+                shape: ColliderShape::cuboid(rad * 10.0, rad).into(),
                 ..Default::default()
             };
             let collider2 = ColliderBundle {
-                shape: ColliderShape::cuboid(rad, rad * 10.0),
+                shape: ColliderShape::cuboid(rad, rad * 10.0).into(),
                 position: [rad * 10.0, rad * 10.0].into(),
                 ..Default::default()
             };
             let collider3 = ColliderBundle {
-                shape: ColliderShape::cuboid(rad, rad * 10.0),
+                shape: ColliderShape::cuboid(rad, rad * 10.0).into(),
                 position: [-rad * 10.0, rad * 10.0].into(),
                 ..Default::default()
             };

@@ -3,7 +3,6 @@ extern crate rapier2d as rapier; // For the debug UI.
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use bevy::render::pass::ClearColor;
 use rapier::geometry::SolverFlags;
 use rapier2d::pipeline::{PairFilterContext, PhysicsPipeline};
 use ui::DebugUiPlugin;
@@ -11,7 +10,7 @@ use ui::DebugUiPlugin;
 #[path = "../../src_debug_ui/mod.rs"]
 mod ui;
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Component)]
 enum CustomFilterTag {
     GroupA,
     GroupB,
@@ -49,7 +48,7 @@ impl<'a> PhysicsHooksWithQuery<&'a CustomFilterTag> for SameUserDataFilter {
 }
 
 fn main() {
-    App::build()
+    App::new()
         .insert_resource(ClearColor(Color::rgb(
             0xF9 as f32 / 255.0,
             0xF9 as f32 / 255.0,
@@ -57,8 +56,6 @@ fn main() {
         )))
         .insert_resource(Msaa::default())
         .add_plugins(DefaultPlugins)
-        .add_plugin(bevy_winit::WinitPlugin::default())
-        .add_plugin(bevy_wgpu::WgpuPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<&CustomFilterTag>::default())
         .add_plugin(RapierRenderPlugin)
         .add_plugin(DebugUiPlugin)
@@ -77,9 +74,9 @@ fn setup_graphics(mut commands: Commands, mut configuration: ResMut<RapierConfig
 
     let mut camera = OrthographicCameraBundle::new_2d();
     camera.transform = Transform::from_translation(Vec3::new(0.0, 200.0, 0.0));
-    commands.spawn_bundle(LightBundle {
+    commands.spawn_bundle(PointLightBundle {
         transform: Transform::from_translation(Vec3::new(1000.0, 10.0, 2000.0)),
-        light: Light {
+        point_light: PointLight {
             intensity: 100_000_000_.0,
             range: 6000.0,
             ..Default::default()
@@ -98,7 +95,7 @@ pub fn setup_physics(mut commands: Commands) {
     let ground_size = 10.0;
 
     let collider = ColliderBundle {
-        shape: ColliderShape::cuboid(ground_size, 1.2),
+        shape: ColliderShape::cuboid(ground_size, 1.2).into(),
         position: [0.0, -10.0].into(),
         ..Default::default()
     };
@@ -109,7 +106,7 @@ pub fn setup_physics(mut commands: Commands) {
         .insert(CustomFilterTag::GroupA);
 
     let collider = ColliderBundle {
-        shape: ColliderShape::cuboid(ground_size, 1.2),
+        shape: ColliderShape::cuboid(ground_size, 1.2).into(),
         ..Default::default()
     };
     commands
@@ -141,7 +138,7 @@ pub fn setup_physics(mut commands: Commands) {
             };
 
             let collider = ColliderBundle {
-                shape: ColliderShape::cuboid(rad, rad),
+                shape: ColliderShape::cuboid(rad, rad).into(),
                 flags: ActiveHooks::FILTER_CONTACT_PAIRS.into(),
                 ..Default::default()
             };

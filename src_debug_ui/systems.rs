@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy_ecs::prelude::*;
 use rapier::pipeline::PhysicsPipeline;
 
 pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {

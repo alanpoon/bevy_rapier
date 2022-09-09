@@ -1,142 +1,197 @@
 use super::{IntoEntity, IntoHandle};
-use crate::rapier::dynamics::{
-    RigidBodyActivation, RigidBodyCcd, RigidBodyChanges, RigidBodyColliders, RigidBodyDamping,
-    RigidBodyDominance, RigidBodyForces, RigidBodyHandle, RigidBodyIds, RigidBodyMassProps,
-    RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+use crate::physics::wrapper::{
+    RigidBodyActivationComponent, RigidBodyCcdComponent, RigidBodyChangesComponent,
+    RigidBodyCollidersComponent, RigidBodyDampingComponent, RigidBodyDominanceComponent,
+    RigidBodyForcesComponent, RigidBodyIdsComponent, RigidBodyMassPropsComponent,
+    RigidBodyPositionComponent, RigidBodyTypeComponent, RigidBodyVelocityComponent,
 };
-use bevy::prelude::*;
+use bevy_ecs::prelude::*;
 use rapier::data::{ComponentSet, ComponentSetMut, ComponentSetOption, Index};
-
-impl IntoHandle<RigidBodyHandle> for Entity {
+use rapier::dynamics;
+impl IntoHandle<dynamics::RigidBodyHandle> for Entity {
     #[inline]
-    fn handle(self) -> RigidBodyHandle {
-        RigidBodyHandle::from_raw_parts(self.id(), self.generation())
+    fn handle(self) -> dynamics::RigidBodyHandle {
+        dynamics::RigidBodyHandle::from_raw_parts(self.id(), self.generation())
     }
 }
 
-impl IntoEntity for RigidBodyHandle {
+impl IntoEntity for dynamics::RigidBodyHandle {
     #[inline]
     fn entity(self) -> Entity {
         self.0.entity()
     }
 }
 
-pub type RigidBodyComponentsQuery<'a, 'b, 'c> = QuerySet<(
-    Query<
-        'a,
-        (
-            Entity,
-            &'b RigidBodyPosition,
-            &'b RigidBodyVelocity,
-            &'b RigidBodyMassProps,
-            &'b RigidBodyIds,
-            &'b RigidBodyForces,
-            &'b RigidBodyActivation,
-            &'b RigidBodyChanges,
-            &'b RigidBodyCcd,
-            &'b RigidBodyColliders,
-            &'b RigidBodyDamping,
-            &'b RigidBodyDominance,
-            &'b RigidBodyType,
-        ),
-    >,
-    Query<
-        'a,
-        (
-            Entity,
-            &'c mut RigidBodyPosition,
-            &'c mut RigidBodyVelocity,
-            &'c mut RigidBodyMassProps,
-            &'c mut RigidBodyIds,
-            &'c mut RigidBodyForces,
-            &'c mut RigidBodyActivation,
-            &'c mut RigidBodyChanges,
-            &'c mut RigidBodyCcd,
-            // Need for handling collider removals.
-            &'c mut RigidBodyColliders,
-        ),
-    >,
-    Query<
-        'a,
-        (
-            Entity,
-            &'c mut RigidBodyChanges,
-            &'c mut RigidBodyActivation,
-            Or<(Changed<RigidBodyPosition>, Added<RigidBodyPosition>)>,
-            Or<(Changed<RigidBodyVelocity>, Added<RigidBodyVelocity>)>,
-            Or<(Changed<RigidBodyForces>, Added<RigidBodyForces>)>,
-            Or<(Changed<RigidBodyType>, Added<RigidBodyType>)>,
-            Or<(Changed<RigidBodyColliders>, Added<RigidBodyColliders>)>,
-        ),
-        Or<(
-            Changed<RigidBodyPosition>,
-            Added<RigidBodyPosition>,
-            Changed<RigidBodyVelocity>,
-            Added<RigidBodyVelocity>,
-            Changed<RigidBodyForces>,
-            Added<RigidBodyForces>,
-            Changed<RigidBodyActivation>,
-            Added<RigidBodyActivation>,
-            Changed<RigidBodyType>,
-            Added<RigidBodyType>,
-            Changed<RigidBodyColliders>,
-            Added<RigidBodyColliders>,
-        )>,
-    >,
-    Query<
-        'a,
-        &'c mut RigidBodyChanges,
-        Or<(Changed<RigidBodyActivation>, Added<RigidBodyActivation>)>,
-    >,
-)>;
+pub type RigidBodyComponentsQueryPayload<'a> = (
+    Entity,
+    &'a mut RigidBodyPositionComponent,
+    &'a mut RigidBodyVelocityComponent,
+    &'a mut RigidBodyMassPropsComponent,
+    &'a mut RigidBodyIdsComponent,
+    &'a mut RigidBodyForcesComponent,
+    &'a mut RigidBodyCcdComponent,
+    &'a mut RigidBodyCollidersComponent,
+    &'a mut RigidBodyDampingComponent,
+    &'a mut RigidBodyDominanceComponent,
+    &'a mut RigidBodyTypeComponent,
+    &'a mut RigidBodyChangesComponent,
+    &'a mut RigidBodyActivationComponent,
+);
 
-pub struct RigidBodyComponentsSet<'a, 'b, 'c>(pub RigidBodyComponentsQuery<'a, 'b, 'c>);
+pub type RigidBodyChangesQueryPayload<'a> = (
+    Entity,
+    &'a mut RigidBodyActivationComponent,
+    &'a mut RigidBodyChangesComponent,
+    Or<(
+        Changed<RigidBodyPositionComponent>,
+        Added<RigidBodyPositionComponent>,
+    )>,
+    Or<(
+        Changed<RigidBodyTypeComponent>,
+        Added<RigidBodyTypeComponent>,
+    )>,
+    Or<(
+        Changed<RigidBodyCollidersComponent>,
+        Added<RigidBodyCollidersComponent>,
+    )>,
+);
 
-impl_component_set_mut!(RigidBodyComponentsSet, RigidBodyPosition, |data| data.1);
-impl_component_set_mut!(RigidBodyComponentsSet, RigidBodyVelocity, |data| data.2);
-impl_component_set_mut!(RigidBodyComponentsSet, RigidBodyMassProps, |data| data.3);
-impl_component_set_mut!(RigidBodyComponentsSet, RigidBodyIds, |data| data.4);
-impl_component_set_mut!(RigidBodyComponentsSet, RigidBodyForces, |data| data.5);
-impl_component_set_mut!(RigidBodyComponentsSet, RigidBodyActivation, |data| data.6);
-impl_component_set_mut!(RigidBodyComponentsSet, RigidBodyChanges, |data| data.7);
-impl_component_set_mut!(RigidBodyComponentsSet, RigidBodyCcd, |data| data.8);
-impl_component_set_mut!(RigidBodyComponentsSet, RigidBodyColliders, |data| data.9);
+pub type RigidBodyChangesQueryFilter = (
+    Or<(
+        Changed<RigidBodyPositionComponent>,
+        Added<RigidBodyPositionComponent>,
+        Changed<RigidBodyVelocityComponent>,
+        Added<RigidBodyVelocityComponent>,
+        Changed<RigidBodyForcesComponent>,
+        Added<RigidBodyForcesComponent>,
+        Changed<RigidBodyActivationComponent>,
+        Added<RigidBodyActivationComponent>,
+        Changed<RigidBodyTypeComponent>,
+        Added<RigidBodyTypeComponent>,
+        Changed<RigidBodyCollidersComponent>,
+        Added<RigidBodyCollidersComponent>,
+    )>,
+);
 
-impl_component_set!(RigidBodyComponentsSet, RigidBodyDamping, |data| data.10);
-impl_component_set!(RigidBodyComponentsSet, RigidBodyDominance, |data| data.11);
-impl_component_set!(RigidBodyComponentsSet, RigidBodyType, |data| data.12);
+pub type RigidBodyComponentsQuerySet<'world, 'state, 'a> = QuerySet<
+    'world,
+    'state,
+    (
+        // Components query
+        QueryState<RigidBodyComponentsQueryPayload<'a>>,
+        // Changes query
+        QueryState<RigidBodyChangesQueryPayload<'a>, RigidBodyChangesQueryFilter>,
+    ),
+>;
+
+pub struct RigidBodyComponentsSet<'world, 'state, 'a>(
+    pub Query<'world, 'state, RigidBodyComponentsQueryPayload<'a>>,
+);
+
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyPosition,
+    RigidBodyPositionComponent,
+    |data| &*data.1
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyVelocity,
+    RigidBodyVelocityComponent,
+    |data| &*data.2
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyMassProps,
+    RigidBodyMassPropsComponent,
+    |data| &*data.3
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyIds,
+    RigidBodyIdsComponent,
+    |data| &*data.4
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyForces,
+    RigidBodyForcesComponent,
+    |data| &*data.5
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyCcd,
+    RigidBodyCcdComponent,
+    |data| &*data.6
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyColliders,
+    RigidBodyCollidersComponent,
+    |data| &*data.7
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyDamping,
+    RigidBodyDampingComponent,
+    |data| &*data.8
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyDominance,
+    RigidBodyDominanceComponent,
+    |data| &*data.9
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyType,
+    RigidBodyTypeComponent,
+    |data| &*data.10
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyChanges,
+    RigidBodyChangesComponent,
+    |data| &*data.11
+);
+impl_component_set_mut!(
+    RigidBodyComponentsSet,
+    dynamics::RigidBodyActivation,
+    RigidBodyActivationComponent,
+    |data| &*data.12
+);
 
 #[derive(Bundle)]
 pub struct RigidBodyBundle {
-    pub body_type: RigidBodyType,
-    pub position: RigidBodyPosition,
-    pub velocity: RigidBodyVelocity,
-    pub mass_properties: RigidBodyMassProps,
-    pub forces: RigidBodyForces,
-    pub activation: RigidBodyActivation,
-    pub damping: RigidBodyDamping,
-    pub dominance: RigidBodyDominance,
-    pub ccd: RigidBodyCcd,
-    pub changes: RigidBodyChanges,
-    pub ids: RigidBodyIds,
-    pub colliders: RigidBodyColliders,
+    pub body_type: RigidBodyTypeComponent,
+    pub position: RigidBodyPositionComponent,
+    pub velocity: RigidBodyVelocityComponent,
+    pub mass_properties: RigidBodyMassPropsComponent,
+    pub forces: RigidBodyForcesComponent,
+    pub activation: RigidBodyActivationComponent,
+    pub damping: RigidBodyDampingComponent,
+    pub dominance: RigidBodyDominanceComponent,
+    pub ccd: RigidBodyCcdComponent,
+    pub changes: RigidBodyChangesComponent,
+    pub ids: RigidBodyIdsComponent,
+    pub colliders: RigidBodyCollidersComponent,
 }
 
 impl Default for RigidBodyBundle {
     fn default() -> Self {
         Self {
-            body_type: RigidBodyType::Dynamic,
-            position: RigidBodyPosition::default(),
-            velocity: RigidBodyVelocity::default(),
-            mass_properties: RigidBodyMassProps::default(),
-            forces: RigidBodyForces::default(),
-            activation: RigidBodyActivation::default(),
-            damping: RigidBodyDamping::default(),
-            dominance: RigidBodyDominance::default(),
-            ccd: RigidBodyCcd::default(),
-            changes: RigidBodyChanges::default(),
-            ids: RigidBodyIds::default(),
-            colliders: RigidBodyColliders::default(),
+            body_type: RigidBodyTypeComponent(rapier::prelude::RigidBodyType::Dynamic),
+            position: RigidBodyPositionComponent::default(),
+            velocity: RigidBodyVelocityComponent::default(),
+            mass_properties: RigidBodyMassPropsComponent::default(),
+            forces: RigidBodyForcesComponent::default(),
+            activation: RigidBodyActivationComponent::default(),
+            damping: RigidBodyDampingComponent::default(),
+            dominance: RigidBodyDominanceComponent::default(),
+            ccd: RigidBodyCcdComponent::default(),
+            changes: RigidBodyChangesComponent::default(),
+            ids: RigidBodyIdsComponent::default(),
+            colliders: RigidBodyCollidersComponent::default(),
         }
     }
 }
