@@ -36,7 +36,7 @@ bevy_utils = { git="https://github.com/bevyengine/bevy",rev = "523e7af73930be4dc
 log = "0.4"
 nalgebra = { version = "0.30.1", features = [ "convert-glam020" ] }
 # Don't enable the default features because we don't need the ColliderSet/RigidBodySet
-rapier2d = { version = "0.12.0-alpha.0", default-features = false, features = [ "dim2", "f32" ] }
+rapier2d = { version = "0.13.0", default-features = false, features = [ "dim2", "f32" ] }
 wasm-bindgen = "=0.2.78"
 
 [dev-dependencies]
