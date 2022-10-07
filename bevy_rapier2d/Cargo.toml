@@ -24,7 +24,6 @@ debug-render = [ "bevy/bevy_core_pipeline", "bevy/bevy_render", "bevy/bevy_sprit
 parallel = [ "rapier2d/parallel" ]
 simd-stable = [ "rapier2d/simd-stable" ]
 simd-nightly = [ "rapier2d/simd-nightly" ]
-wasm-bindgen = [ "rapier2d/wasm-bindgen" ]
 serde-serialize = [ "rapier2d/serde-serialize", "serde" ]
 enhanced-determinism = [ "rapier2d/enhanced-determinism" ]
 
